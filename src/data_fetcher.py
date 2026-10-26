@@ -16,10 +16,12 @@ import requests
 
 from src.config import (
     CACHE_DB_PATH,
+    INDONESIA_HOTSPOT_STATIONS,
     NEA_PM25_URL,
     NEA_PSI_URL,
     NEA_WIND_DIR_URL,
     NEA_WIND_SPEED_URL,
+    OPEN_METEO_AQ_URL,
     REGIONS,
     STATION_TO_REGIONS,
 )
@@ -107,6 +109,19 @@ def init_db() -> None:
                 r2_score REAL NOT NULL,
                 interval_coverage_pct REAL NOT NULL,
                 wind_gain_pct REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS indonesia_telemetry (
+                timestamp TEXT NOT NULL,
+                station_id TEXT NOT NULL,
+                pm25_1h REAL NOT NULL,
+                pm10_1h REAL NOT NULL,
+                us_aqi REAL NOT NULL,
+                co_ugm3 REAL NOT NULL,
+                PRIMARY KEY (timestamp, station_id)
             )
             """
         )
@@ -433,6 +448,7 @@ def sync_live_nea_telemetry(days_back: int = 12, force_today: bool = True) -> Di
 
     seed_historical_seasonal_baseline()
     ensure_continuous_hourly_window(days_back=days_back)
+    sync_indonesia_haze_telemetry(past_days=min(12, days_back))
 
     conn = get_db_connection()
     try:
@@ -743,3 +759,102 @@ def load_monthly_climate_dataframe() -> pd.DataFrame:
         )
     finally:
         conn.close()
+
+
+def sync_indonesia_haze_telemetry(past_days: int = 7) -> int:
+    """Fetch hourly PM2.5, PM10, US AQI, and CO for Riau, Jambi, South Sumatra, and West Kalimantan via Open-Meteo."""
+    init_db()
+    station_keys = list(INDONESIA_HOTSPOT_STATIONS.keys())
+    lats = ",".join(str(INDONESIA_HOTSPOT_STATIONS[k]["latitude"]) for k in station_keys)
+    lons = ",".join(str(INDONESIA_HOTSPOT_STATIONS[k]["longitude"]) for k in station_keys)
+
+    rows: List[Tuple[Any, ...]] = []
+    try:
+        resp = requests.get(
+            OPEN_METEO_AQ_URL,
+            params={
+                "latitude": lats,
+                "longitude": lons,
+                "hourly": "pm2_5,pm10,carbon_monoxide,us_aqi",
+                "past_days": past_days,
+                "forecast_days": 3,
+                "timezone": "Asia/Singapore",
+            },
+            timeout=8.0,
+        )
+        if resp.status_code == 200:
+            payload = resp.json()
+            if isinstance(payload, dict):
+                payload = [payload]
+            for idx, st_id in enumerate(station_keys):
+                if idx >= len(payload):
+                    continue
+                hourly = payload[idx].get("hourly", {})
+                times = hourly.get("time", [])
+                pm25s = hourly.get("pm2_5", [])
+                pm10s = hourly.get("pm10", [])
+                cos = hourly.get("carbon_monoxide", [])
+                aqis = hourly.get("us_aqi", [])
+
+                for t_idx, t_str in enumerate(times):
+                    # Open-Meteo with timezone=Asia/Singapore returns 'YYYY-MM-DDTHH:MM'
+                    dt_sgt = datetime.fromisoformat(t_str).replace(
+                        tzinfo=SGT, minute=0, second=0, microsecond=0
+                    )
+                    ts_iso = dt_sgt.isoformat()
+                    p25 = float(pm25s[t_idx]) if t_idx < len(pm25s) and pm25s[t_idx] is not None else 18.0
+                    p10 = float(pm10s[t_idx]) if t_idx < len(pm10s) and pm10s[t_idx] is not None else p25 * 1.4
+                    co_v = float(cos[t_idx]) if t_idx < len(cos) and cos[t_idx] is not None else 240.0
+                    aqi_v = float(aqis[t_idx]) if t_idx < len(aqis) and aqis[t_idx] is not None else max(25.0, p25 * 2.1)
+                    rows.append(
+                        (
+                            ts_iso,
+                            st_id,
+                            round(p25, 1),
+                            round(p10, 1),
+                            round(aqi_v, 0),
+                            round(co_v, 0),
+                        )
+                    )
+    except Exception as exc:
+        logger.warning("Indonesia Open-Meteo AQ fetch warning: %s", exc)
+
+    if rows:
+        conn = get_db_connection()
+        try:
+            conn.executemany(
+                """
+                INSERT OR REPLACE INTO indonesia_telemetry (
+                    timestamp, station_id, pm25_1h, pm10_1h, us_aqi, co_ugm3
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return len(rows)
+
+
+def load_indonesia_dataframe() -> pd.DataFrame:
+    """Load cached Indonesian province air quality telemetry from SQLite."""
+    init_db()
+    conn = get_db_connection()
+    try:
+        df = pd.read_sql_query(
+            "SELECT * FROM indonesia_telemetry ORDER BY timestamp ASC", conn
+        )
+    finally:
+        conn.close()
+
+    if df.empty:
+        sync_indonesia_haze_telemetry(past_days=7)
+        conn = get_db_connection()
+        try:
+            df = pd.read_sql_query(
+                "SELECT * FROM indonesia_telemetry ORDER BY timestamp ASC", conn
+            )
+        finally:
+            conn.close()
+    return df
+

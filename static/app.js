@@ -236,6 +236,7 @@
     try { renderSubIndexStrip(); } catch (e) { console.error("SubIndex render error:", e); }
     try { renderTrajectoryChart(); } catch (e) { console.error("Trajectory render error:", e); }
     try { renderHorizonMatrix(); } catch (e) { console.error("Matrix render error:", e); }
+    try { renderIndonesiaCrossBorder(short_term); } catch (e) { console.error("Indonesia cross-border render error:", e); }
     try { renderCounterfactualSandbox(short_term.counterfactual_simulation); } catch (e) { console.error("Sandbox render error:", e); }
     try { renderSeasonalOutlook(seasonal); } catch (e) { console.error("Seasonal render error:", e); }
     try { renderDiagnostics(diagnostics); } catch (e) { console.error("Diagnostics render error:", e); }
@@ -639,6 +640,173 @@
 
   function shortTermLastTs(shortTerm) {
     return shortTerm.latest_timestamp;
+  }
+
+  function renderIndonesiaCrossBorder(shortTerm) {
+    const idData = shortTerm?.indonesia_transboundary;
+    if (!idData) return;
+
+    const totalImpactEl = document.getElementById("id-total-psi-impact");
+    const transShareEl = document.getElementById("id-transboundary-share");
+    const localShareEl = document.getElementById("id-local-share");
+
+    if (totalImpactEl) {
+      totalImpactEl.textContent = `+${idData.total_estimated_psi_impact.toFixed(1)} PSI`;
+      totalImpactEl.style.color =
+        idData.total_estimated_psi_impact > 12
+          ? SEVERITY_COLORS.unhealthy
+          : idData.total_estimated_psi_impact > 5
+          ? SEVERITY_COLORS.moderate
+          : SEVERITY_COLORS.good;
+    }
+    if (transShareEl) {
+      transShareEl.textContent = `${idData.transboundary_share_pct.toFixed(1)}%`;
+    }
+    if (localShareEl) {
+      localShareEl.textContent = `${idData.local_baseline_share_pct.toFixed(1)}%`;
+    }
+
+    const provGrid = document.getElementById("indonesia-provinces-grid");
+    if (provGrid && Array.isArray(idData.provinces)) {
+      provGrid.innerHTML = idData.provinces
+        .map((p) => {
+          const aqiColor = SEVERITY_COLORS[p.severity] || SEVERITY_COLORS.good;
+          const alignColor =
+            p.wind_alignment_pct >= 55
+              ? SEVERITY_COLORS.unhealthy
+              : p.wind_alignment_pct >= 25
+              ? SEVERITY_COLORS.moderate
+              : "var(--text-secondary)";
+          return `
+            <div class="id-province-card" role="listitem">
+              <div class="id-prov-top">
+                <div>
+                  <div class="id-prov-title">${p.name}</div>
+                  <div class="id-prov-corridor">${p.distance_km} km ${p.bearing_cardinal} (${p.bearing_deg}°) &rarr; SG ${p.primary_sg_receptor}</div>
+                </div>
+                <span class="band-pill band-${p.severity}">${p.us_aqi} AQI &middot; ${p.band}</span>
+              </div>
+              <div class="id-prov-metrics">
+                <div class="id-metric-col">
+                  <span class="id-metric-lbl">Live PM<sub>2.5</sub></span>
+                  <span class="id-metric-num" style="color:${aqiColor}">${p.pm25_1h.toFixed(1)} µg/m³</span>
+                </div>
+                <div class="id-metric-col">
+                  <span class="id-metric-lbl">24h Peak / CO</span>
+                  <span class="id-metric-num">${p.pm25_24h_peak.toFixed(0)} µg &middot; ${p.co_ugm3} CO</span>
+                </div>
+                <div class="id-metric-col">
+                  <span class="id-metric-lbl">Wind Alignment</span>
+                  <span class="id-metric-num" style="color:${alignColor}">${p.wind_alignment_pct}% (${p.transit_lag_hours.toFixed(1)}h lag)</span>
+                </div>
+              </div>
+              <div class="id-prov-footer">
+                <span class="id-impact-summary">
+                  Active SG Impact: <strong>+${p.estimated_sg_psi_impact.toFixed(1)} PSI</strong> &middot; Direct Potential: <strong>+${p.direct_onshore_psi_potential.toFixed(1)} PSI</strong>
+                </span>
+                <button
+                  type="button"
+                  class="btn-corridor-sim"
+                  data-bearing="${p.bearing_deg}"
+                  data-name="${p.short_name}"
+                  aria-label="Simulate direct wind corridor plume from ${p.name}">
+                  Simulate Corridor Plume
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      provGrid.querySelectorAll(".btn-corridor-sim").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const bearing = parseFloat(btn.dataset.bearing) || 230;
+          state.simWindDir = bearing;
+          state.simWindSpeed = 13.5;
+          state.simHotspot = 1.6;
+
+          const sliderSimWd = document.getElementById("slider-sim-wd");
+          const sliderSimWs = document.getElementById("slider-sim-ws");
+          const sliderSimHs = document.getElementById("slider-sim-hs");
+          if (sliderSimWd) sliderSimWd.value = state.simWindDir;
+          if (sliderSimWs) sliderSimWs.value = state.simWindSpeed;
+          if (sliderSimHs) sliderSimHs.value = state.simHotspot;
+
+          document.querySelectorAll(".sim-preset-btn").forEach((b) => b.classList.remove("active"));
+          updateSimLabels();
+          fetchOverview();
+        });
+      });
+    }
+
+    // Render Cross-Border Propagation SVG Chart
+    const svg = document.getElementById("indonesia-propagation-svg");
+    const srcSeries = idData.source_series || [];
+    if (!svg || srcSeries.length < 2) return;
+
+    // Build matching Singapore West/South receptor series from observed_history + national_forecast
+    const sgMap = {};
+    for (const obs of shortTerm.observed_history || []) {
+      const wPsi = obs.regions?.west?.psi_24h ?? obs.national_max_psi;
+      const sPsi = obs.regions?.south?.psi_24h ?? obs.national_max_psi;
+      sgMap[obs.timestamp.slice(0, 13)] = Math.max(wPsi, sPsi);
+    }
+    for (const fc of shortTerm.national_forecast || []) {
+      const wPsi = fc.regions?.west ?? fc.national_max_psi;
+      const sPsi = fc.regions?.south ?? fc.national_max_psi;
+      sgMap[fc.timestamp.slice(0, 13)] = Math.max(wPsi, sPsi);
+    }
+
+    const merged = srcSeries.map((pt) => {
+      const hourKey = pt.timestamp.slice(0, 13);
+      return {
+        ts: pt.timestamp,
+        riau: pt.riau_pm25,
+        jambi: pt.jambi_pm25,
+        sgPsi: sgMap[hourKey] ?? shortTerm.national_forecast?.[0]?.national_max_psi ?? 50,
+      };
+    });
+
+    const W = 560;
+    const H = 235;
+    const padL = 42;
+    const padR = 24;
+    const padT = 16;
+    const padB = 30;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const allVals = merged.flatMap((d) => [d.riau, d.jambi, d.sgPsi, 80]);
+    const minY = 0;
+    const maxY = Math.ceil(Math.max(...allVals) / 20) * 20;
+
+    const xAt = (i) => padL + (i / Math.max(1, merged.length - 1)) * plotW;
+    const yAt = (v) => padT + plotH - ((v - minY) / Math.max(1, maxY - minY)) * plotH;
+
+    let html = "";
+    const yTicks = [0, Math.round(maxY / 2), maxY];
+    for (const t of yTicks) {
+      const y = yAt(t);
+      html += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="#E5E5EA" stroke-width="1" />`;
+      html += `<text x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" class="coord-label">${t}</text>`;
+    }
+
+    const riauPts = merged.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.riau).toFixed(1)}`);
+    const jambiPts = merged.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.jambi).toFixed(1)}`);
+    const sgPts = merged.map((d, i) => `${xAt(i).toFixed(1)},${yAt(d.sgPsi).toFixed(1)}`);
+
+    html += `<polyline class="morph-line" points="${riauPts.join(" ")}" fill="none" stroke="#EA580C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />`;
+    html += `<polyline class="morph-line" points="${jambiPts.join(" ")}" fill="none" stroke="#D97706" stroke-width="1.9" stroke-dasharray="4 3" stroke-linecap="round" stroke-linejoin="round" />`;
+    html += `<polyline class="morph-line" points="${sgPts.join(" ")}" fill="none" stroke="#0071E3" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />`;
+
+    const startLbl = formatShortDayHour(merged[0]?.ts);
+    const midLbl = formatShortDayHour(merged[Math.floor(merged.length / 2)]?.ts);
+    const endLbl = formatShortDayHour(merged[merged.length - 1]?.ts);
+    html += `<text x="${padL}" y="${H - 8}" text-anchor="start" class="coord-label">${startLbl}</text>`;
+    html += `<text x="${(padL + plotW / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" class="coord-label">${midLbl}</text>`;
+    html += `<text x="${W - padR}" y="${H - 8}" text-anchor="end" class="coord-label">${endLbl}</text>`;
+
+    svg.innerHTML = html;
   }
 
   function renderCounterfactualSandbox(sim) {

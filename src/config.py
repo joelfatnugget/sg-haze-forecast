@@ -30,8 +30,61 @@ NEA_PSI_URL = "https://api.data.gov.sg/v1/environment/psi"
 NEA_PM25_URL = "https://api.data.gov.sg/v1/environment/pm25"
 NEA_WIND_SPEED_URL = "https://api.data.gov.sg/v1/environment/wind-speed"
 NEA_WIND_DIR_URL = "https://api.data.gov.sg/v1/environment/wind-direction"
+OPEN_METEO_AQ_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 REGIONS = ["north", "south", "east", "west", "central"]
+
+# Key Indonesian peatland fire source provinces monitored by ASMC / BMKG
+INDONESIA_HOTSPOT_STATIONS: Dict[str, Dict[str, Any]] = {
+    "riau": {
+        "id": "riau",
+        "name": "Pekanbaru (Riau, Central Sumatra)",
+        "short_name": "Riau (Pekanbaru)",
+        "province": "Riau Province · Central Sumatra",
+        "latitude": 0.5071,
+        "longitude": 101.4478,
+        "distance_km": 285.0,
+        "bearing_from_sg_deg": 288.0,  # WNW corridor across Malacca Strait
+        "primary_sg_receptor": "west",
+        "transport_weight": 0.42,
+    },
+    "jambi": {
+        "id": "jambi",
+        "name": "Jambi City (Jambi, Sumatra)",
+        "short_name": "Jambi (Sumatra)",
+        "province": "Jambi Province · Southern Sumatra",
+        "latitude": -1.6101,
+        "longitude": 103.6131,
+        "distance_km": 330.0,
+        "bearing_from_sg_deg": 184.0,  # Direct South/SSW corridor across Riau Islands
+        "primary_sg_receptor": "south",
+        "transport_weight": 0.30,
+    },
+    "south_sumatra": {
+        "id": "south_sumatra",
+        "name": "Palembang (South Sumatra)",
+        "short_name": "South Sumatra (Palembang)",
+        "province": "Sumatera Selatan · Ogan Komering Peatlands",
+        "latitude": -2.9761,
+        "longitude": 104.7754,
+        "distance_km": 485.0,
+        "bearing_from_sg_deg": 168.0,  # SSE/S corridor
+        "primary_sg_receptor": "south",
+        "transport_weight": 0.18,
+    },
+    "west_kalimantan": {
+        "id": "west_kalimantan",
+        "name": "Pontianak (West Kalimantan)",
+        "short_name": "West Kalimantan (Pontianak)",
+        "province": "Kalimantan Barat · Kapuas Peatlands",
+        "latitude": -0.0263,
+        "longitude": 109.3425,
+        "distance_km": 620.0,
+        "bearing_from_sg_deg": 104.0,  # ESE corridor across Karimata Strait
+        "primary_sg_receptor": "east",
+        "transport_weight": 0.10,
+    },
+}
 
 REGION_METADATA: Dict[str, Dict[str, Any]] = {
     "north": {

@@ -12,6 +12,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from src.config import (
+    INDONESIA_HOTSPOT_STATIONS,
     REGION_METADATA,
     REGIONS,
     classify_pm25_band,
@@ -21,6 +22,7 @@ from src.config import (
 )
 from src.data_fetcher import (
     load_hourly_dataframe,
+    load_indonesia_dataframe,
     load_monthly_climate_dataframe,
     record_training_run,
 )
@@ -658,6 +660,122 @@ class HazeForecastEngine:
 
         return national_timeline, forecast_records
 
+    def compute_indonesia_cross_border_impact(
+        self,
+        latest_ts: str,
+        live_wind_speed_kn: float,
+        live_wind_dir_deg: float,
+        national_mean_psi: float,
+        sim_hotspot_intensity: float = 0.0,
+    ) -> Dict[str, Any]:
+        """Quantify how live haze levels in Riau, Jambi, South Sumatra, and West Kalimantan impact Singapore."""
+        id_df = load_indonesia_dataframe()
+        now_dt = pd.to_datetime(latest_ts)
+
+        provinces_summary: List[Dict[str, Any]] = []
+        total_transboundary_psi_contribution = 0.0
+        wind_kmh = max(3.5, live_wind_speed_kn * 1.852)
+
+        for st_id, meta in INDONESIA_HOTSPOT_STATIONS.items():
+            st_df = id_df[id_df["station_id"] == st_id].copy()
+            if not st_df.empty:
+                st_df["dt"] = pd.to_datetime(st_df["timestamp"])
+                past_df = st_df[st_df["dt"] <= now_dt].sort_values("dt")
+                future_df = st_df[st_df["dt"] > now_dt].sort_values("dt")
+                cur_row = past_df.iloc[-1] if not past_df.empty else st_df.iloc[-1]
+                pm25_now = float(cur_row["pm25_1h"])
+                pm10_now = float(cur_row["pm10_1h"])
+                aqi_now = float(cur_row["us_aqi"])
+                co_now = float(cur_row["co_ugm3"])
+                pm25_24h_peak = float(past_df.tail(24)["pm25_1h"].max()) if not past_df.empty else pm25_now
+                pm25_forecast_24h = (
+                    float(future_df.head(24)["pm25_1h"].max()) if not future_df.empty else pm25_now
+                )
+            else:
+                pm25_now, pm10_now, aqi_now, co_now = 16.0, 24.0, 58.0, 260.0
+                pm25_24h_peak, pm25_forecast_24h = 22.0, 19.0
+
+            # Bearing alignment: how directly the active Singapore wind vector blows FROM this province's corridor
+            bearing_deg = float(meta["bearing_from_sg_deg"])
+            alignment = math.cos(math.radians(live_wind_dir_deg - bearing_deg))
+            effective_alignment = max(0.0, alignment)
+
+            # Advection transit time (hours) = Distance (km) / Wind Speed (km/h)
+            transit_hours = round(float(meta["distance_km"]) / wind_kmh, 1)
+
+            # Estimated PSI contribution reaching Singapore over the next 12-24h from this source province
+            # Combines current/forecast source PM2.5, transport weight, distance decay, wind alignment, and peatland multiplier
+            source_excess = max(2.0, pm25_24h_peak - 6.0) * (1.0 + 0.45 * sim_hotspot_intensity)
+            active_contrib = (
+                source_excess
+                * float(meta["transport_weight"])
+                * (0.20 + 0.80 * effective_alignment)
+                * min(1.6, live_wind_speed_kn / 6.0)
+            )
+            # Counterfactual: what this province would add if winds shifted directly onshore (12 kn aligned)
+            direct_plume_potential = round(
+                max(4.0, source_excess * float(meta["transport_weight"]) * 1.25), 1
+            )
+
+            total_transboundary_psi_contribution += active_contrib
+            band_meta = classify_psi_band(aqi_now)
+
+            provinces_summary.append(
+                {
+                    "id": st_id,
+                    "name": meta["name"],
+                    "short_name": meta["short_name"],
+                    "province": meta["province"],
+                    "distance_km": int(meta["distance_km"]),
+                    "bearing_deg": int(bearing_deg),
+                    "bearing_cardinal": degrees_to_cardinal(bearing_deg),
+                    "primary_sg_receptor": meta["primary_sg_receptor"].capitalize(),
+                    "pm25_1h": round(pm25_now, 1),
+                    "pm10_1h": round(pm10_now, 1),
+                    "us_aqi": int(round(aqi_now)),
+                    "co_ugm3": int(round(co_now)),
+                    "pm25_24h_peak": round(pm25_24h_peak, 1),
+                    "pm25_forecast_24h": round(pm25_forecast_24h, 1),
+                    "wind_alignment_pct": int(round(effective_alignment * 100.0)),
+                    "transit_lag_hours": transit_hours,
+                    "estimated_sg_psi_impact": round(active_contrib, 1),
+                    "direct_onshore_psi_potential": direct_plume_potential,
+                    "band": band_meta["band"],
+                    "severity": band_meta["severity"],
+                }
+            )
+
+        transboundary_share_pct = min(
+            78.0,
+            round((total_transboundary_psi_contribution / max(national_mean_psi, 1.0)) * 100.0, 1),
+        )
+
+        # Build 48h past + 24h forecast comparison series (Riau + Jambi Source PM2.5 vs Singapore West/South PSI)
+        riau_df = id_df[id_df["station_id"] == "riau"].tail(72)
+        jambi_df = id_df[id_df["station_id"] == "jambi"].tail(72)
+        jambi_map = dict(zip(jambi_df["timestamp"], jambi_df["pm25_1h"]))
+
+        comparison_series = []
+        for _, r_row in riau_df.iterrows():
+            ts = str(r_row["timestamp"])
+            r_pm25 = float(r_row["pm25_1h"])
+            j_pm25 = float(jambi_map.get(ts, r_pm25))
+            comparison_series.append(
+                {
+                    "timestamp": ts,
+                    "riau_pm25": round(r_pm25, 1),
+                    "jambi_pm25": round(j_pm25, 1),
+                }
+            )
+
+        return {
+            "total_estimated_psi_impact": round(total_transboundary_psi_contribution, 1),
+            "transboundary_share_pct": transboundary_share_pct,
+            "local_baseline_share_pct": round(100.0 - transboundary_share_pct, 1),
+            "provinces": provinces_summary,
+            "source_series": comparison_series,
+        }
+
     def forecast_short_term(
         self,
         horizon_hours: int = 72,
@@ -809,6 +927,14 @@ class HazeForecastEngine:
                 "pm25_band": pm25_meta["band"],
             }
 
+        indonesia_impact = self.compute_indonesia_cross_border_impact(
+            latest_ts=latest_ts,
+            live_wind_speed_kn=eff_sim_ws,
+            live_wind_dir_deg=eff_sim_wd,
+            national_mean_psi=float(latest_slice["psi_24h"].mean()),
+            sim_hotspot_intensity=sim_hotspot_intensity,
+        )
+
         return {
             "latest_timestamp": latest_ts,
             "wind_regime": wind_regime,
@@ -819,6 +945,7 @@ class HazeForecastEngine:
                 "cardinal": degrees_to_cardinal(live_mean_wd),
                 "sumatra_advection_idx": compute_sumatra_advection_index(live_mean_ws, live_mean_wd),
             },
+            "indonesia_transboundary": indonesia_impact,
             "current_regions": current_regions,
             "observed_history": observed_national,
             "national_forecast": national_timeline,

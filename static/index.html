@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=8" />
+  <link rel="stylesheet" href="/static/styles.css?v=9" />
 </head>
 <body>
   <header class="topbar" role="banner">
@@ -322,6 +322,62 @@
       </div>
     </section>
 
+    <!-- Section 1B: Indonesia Cross-Border Haze & Plume Transport Attribution -->
+    <section class="indonesia-section" aria-label="Indonesia Cross-Border Haze Telemetry and Plume Transport Attribution">
+      <div class="instrument-panel indonesia-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Indonesia Cross-Border Haze &amp; Plume Transport Attribution</h2>
+            <p class="panel-subtitle">Live CAMS/Open-Meteo PM<sub>2.5</sub>, PM<sub>10</sub>, CO &amp; US AQI across Sumatra and Kalimantan peatland provinces coupled with NEA wind vector advection into Singapore</p>
+          </div>
+          <div class="id-attribution-pills" aria-live="polite">
+            <div class="id-stat-pill">
+              <span class="id-stat-label">Cross-Border Impact</span>
+              <strong class="id-stat-val" id="id-total-psi-impact">+-- PSI</strong>
+            </div>
+            <div class="id-stat-pill">
+              <span class="id-stat-label">Transboundary Share</span>
+              <strong class="id-stat-val" id="id-transboundary-share">--%</strong>
+            </div>
+            <div class="id-stat-pill">
+              <span class="id-stat-label">Local Urban Baseline</span>
+              <strong class="id-stat-val" id="id-local-share">--%</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="indonesia-body-grid">
+          <!-- Left: 4 Indonesian Source Province Cards -->
+          <div class="indonesia-provinces-wrap">
+            <div class="sub-header-bar">
+              <h3 class="sub-section-title">Upstream Peatland &amp; Biomass Source Corridors</h3>
+              <span class="unit-caption">Click any corridor to simulate direct plume transport</span>
+            </div>
+            <div class="indonesia-provinces-grid" id="indonesia-provinces-grid" role="list"></div>
+          </div>
+
+          <!-- Right: Upstream Source PM2.5 vs. Singapore Receptor PSI Propagation Chart -->
+          <div class="indonesia-chart-wrap">
+            <div class="sub-header-bar">
+              <h3 class="sub-section-title">Cross-Border Plume Propagation: Sumatra Source PM<sub>2.5</sub> vs. Singapore Receptor PSI</h3>
+              <span class="unit-caption">48h Observed + 24h CAMS/ML Trajectory</span>
+            </div>
+            <div class="chart-canvas-wrap">
+              <svg id="indonesia-propagation-svg" viewBox="0 0 560 235" role="img" aria-label="Comparison chart of Riau and Jambi PM2.5 source levels against Singapore West and South receptor PSI"></svg>
+              <div class="chart-legend">
+                <span class="legend-item"><i class="swatch swatch-riau"></i>Riau (Pekanbaru) PM<sub>2.5</sub> (µg/m³)</span>
+                <span class="legend-item"><i class="swatch swatch-jambi"></i>Jambi (Sumatra) PM<sub>2.5</sub> (µg/m³)</span>
+                <span class="legend-item"><i class="swatch swatch-obs"></i>Singapore West/South Receptor PSI</span>
+              </div>
+            </div>
+            <p class="id-physics-caption" id="id-physics-caption">
+              Advection physics: Upstream particulate surges in Riau (285 km) and Jambi (330 km) cross the Malacca &amp; Singapore Straits into Western/Southern Singapore when surface winds align with the 190°–290° SW/WNW corridor.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Section 2: "Calculated Predictions on Predictions" Wind Vector & Plume Counterfactual Lab + Continuous Learning Monitor -->
     <section class="sandbox-grid" aria-label="Calculated Predictions on Predictions Sandbox and Continuous Model Learning">
       <!-- Left: Counterfactual Wind Vector & Plume Sandbox -->
@@ -557,6 +613,6 @@
     </section>
   </main>
 
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

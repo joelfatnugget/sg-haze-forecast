@@ -72,6 +72,12 @@ def test_wind_aware_forecaster_and_counterfactual_predictions() -> None:
     assert sim_sw["delta_24h_psi"] > sim_ne["delta_24h_psi"]
     assert len(sim_sw["directional_sensitivity_rose"]) == 8
 
+    # Verify Indonesia cross-border haze attribution & corridor sensitivity
+    id_sw = fc_sw["indonesia_transboundary"]
+    id_ne = fc_ne["indonesia_transboundary"]
+    assert len(id_sw["provinces"]) == 4
+    assert id_sw["total_estimated_psi_impact"] > id_ne["total_estimated_psi_impact"]
+
 
 def test_fastapi_endpoints_and_continuous_sync() -> None:
     with TestClient(app) as client:
