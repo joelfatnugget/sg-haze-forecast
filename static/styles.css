@@ -10,7 +10,7 @@
   --text-secondary: #515154;
   --text-muted: #6e6e73;
 
-  --nea-good: #059669;
+  --nea-good: #047857;
   --nea-good-bg: rgba(5, 150, 105, 0.1);
   --nea-moderate: #0284c7;
   --nea-moderate-bg: rgba(2, 132, 199, 0.1);
@@ -148,6 +148,11 @@ body {
   background-color: var(--nea-good);
   box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.18);
   transition: transform 400ms var(--spring-ease), background-color 400ms var(--spring-ease);
+}
+
+.status-dot.accuracy-dot {
+  background-color: #047857;
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.25);
 }
 
 .auto-learn-toggle {
@@ -1042,6 +1047,19 @@ select:focus-visible,
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.metrics-strip.five-col {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.metric-item.highlight-metric {
+  background-color: rgba(4, 120, 87, 0.05);
+  border-color: rgba(4, 120, 87, 0.32);
+}
+
+.metric-item.highlight-metric dd {
+  color: #047857;
+}
+
 .training-log-box {
   display: flex;
   flex-direction: column;
@@ -1356,7 +1374,8 @@ select:focus-visible,
 
   .climate-sliders-row,
   .delta-cards-grid,
-  .metrics-strip.four-col {
+  .metrics-strip.four-col,
+  .metrics-strip.five-col {
     grid-template-columns: repeat(2, 1fr);
   }
 

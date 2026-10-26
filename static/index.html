@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=9" />
+  <link rel="stylesheet" href="/static/styles.css?v=10" />
 </head>
 <body>
   <header class="topbar" role="banner">
@@ -25,6 +25,10 @@
     </div>
 
     <div class="topbar-actions">
+      <div class="telemetry-status" id="model-accuracy-status" title="Holdout validation accuracy evaluated against unseen out-of-sample NEA readings">
+        <span class="status-dot accuracy-dot"></span>
+        <span class="status-text">Accuracy: <strong id="topbar-accuracy-val">--%</strong></span>
+      </div>
       <div class="telemetry-status" id="telemetry-status">
         <span class="status-dot" id="status-dot"></span>
         <span class="status-text" id="latest-timestamp-label">Synchronizing NEA feed...</span>
@@ -469,7 +473,15 @@
           </div>
         </div>
 
-        <dl class="metrics-strip four-col">
+        <dl class="metrics-strip five-col">
+          <div class="metric-item highlight-metric">
+            <dt>Forecast Accuracy</dt>
+            <dd id="diag-accuracy">--%</dd>
+          </div>
+          <div class="metric-item">
+            <dt>±5 PSI Tolerance</dt>
+            <dd id="diag-tolerance">--%</dd>
+          </div>
           <div class="metric-item">
             <dt>Holdout MAE</dt>
             <dd id="diag-mae">--</dd>
@@ -479,11 +491,7 @@
             <dd id="diag-wind-gain">--</dd>
           </div>
           <div class="metric-item">
-            <dt>R² Explained</dt>
-            <dd id="diag-r2">--</dd>
-          </div>
-          <div class="metric-item">
-            <dt>80% Coverage</dt>
+            <dt>80% Quantile Band</dt>
             <dd id="diag-coverage">--</dd>
           </div>
         </dl>
@@ -508,6 +516,7 @@
                   <th scope="col">Run</th>
                   <th scope="col">Trigger</th>
                   <th scope="col">Samples</th>
+                  <th scope="col">Accuracy</th>
                   <th scope="col">MAE</th>
                   <th scope="col">R²</th>
                   <th scope="col">Wind Gain</th>
@@ -613,6 +622,6 @@
     </section>
   </main>
 
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=10"></script>
 </body>
 </html>

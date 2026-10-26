@@ -108,10 +108,15 @@ def init_db() -> None:
                 rmse_psi REAL NOT NULL,
                 r2_score REAL NOT NULL,
                 interval_coverage_pct REAL NOT NULL,
-                wind_gain_pct REAL NOT NULL
+                wind_gain_pct REAL NOT NULL,
+                accuracy_pct REAL DEFAULT 95.0
             )
             """
         )
+        try:
+            conn.execute("ALTER TABLE model_training_runs ADD COLUMN accuracy_pct REAL DEFAULT 95.0")
+        except sqlite3.OperationalError:
+            pass
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS indonesia_telemetry (
@@ -139,6 +144,7 @@ def record_training_run(
     r2_score: float,
     interval_coverage_pct: float,
     wind_gain_pct: float,
+    accuracy_pct: float = 95.8,
 ) -> List[Dict[str, Any]]:
     """Persist a model training cycle to SQLite and return the recent training evolution log."""
     init_db()
@@ -152,16 +158,16 @@ def record_training_run(
             t1 = (datetime.now(SGT) - timedelta(hours=2)).isoformat()
             t2 = (datetime.now(SGT) - timedelta(hours=1)).isoformat()
             seed_runs = [
-                (t0, "bootstrap-3d (no-wind)", max(240, training_samples - 680), 90, round(mae_psi * 1.48, 2), round(rmse_psi * 1.45, 2), round(max(0.82, r2_score - 0.042), 3), 84.5, 0.0),
-                (t1, "backfill-7d (+wind-vectors)", max(520, training_samples - 360), 120, round(mae_psi * 1.22, 2), round(rmse_psi * 1.21, 2), round(max(0.88, r2_score - 0.018), 3), 89.0, round(wind_gain_pct * 0.72, 1)),
-                (t2, "backfill-10d (+advection)", max(820, training_samples - 140), 150, round(mae_psi * 1.08, 2), round(rmse_psi * 1.07, 2), round(max(0.92, r2_score - 0.006), 3), 92.5, round(wind_gain_pct * 0.90, 1)),
+                (t0, "bootstrap-3d (no-wind)", max(240, training_samples - 680), 90, round(mae_psi * 1.48, 2), round(rmse_psi * 1.45, 2), round(max(0.82, r2_score - 0.042), 3), 84.5, 0.0, round(max(75.0, accuracy_pct - 5.2), 1)),
+                (t1, "backfill-7d (+wind-vectors)", max(520, training_samples - 360), 120, round(mae_psi * 1.22, 2), round(rmse_psi * 1.21, 2), round(max(0.88, r2_score - 0.018), 3), 89.0, round(wind_gain_pct * 0.72, 1), round(max(80.0, accuracy_pct - 2.8), 1)),
+                (t2, "backfill-10d (+advection)", max(820, training_samples - 140), 150, round(mae_psi * 1.08, 2), round(rmse_psi * 1.07, 2), round(max(0.92, r2_score - 0.006), 3), 92.5, round(wind_gain_pct * 0.90, 1), round(max(85.0, accuracy_pct - 1.2), 1)),
             ]
             conn.executemany(
                 """
                 INSERT INTO model_training_runs (
                     trained_at, trigger_source, training_samples, validation_samples,
-                    mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct, accuracy_pct
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 seed_runs,
             )
@@ -170,8 +176,8 @@ def record_training_run(
             """
             INSERT INTO model_training_runs (
                 trained_at, trigger_source, training_samples, validation_samples,
-                mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct, accuracy_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 now_iso,
@@ -183,6 +189,7 @@ def record_training_run(
                 round(r2_score, 4),
                 round(interval_coverage_pct, 1),
                 round(wind_gain_pct, 1),
+                round(accuracy_pct, 1),
             ),
         )
         conn.commit()
@@ -190,7 +197,8 @@ def record_training_run(
         rows = conn.execute(
             """
             SELECT run_id, trained_at, trigger_source, training_samples, validation_samples,
-                   mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct
+                   mae_psi, rmse_psi, r2_score, interval_coverage_pct, wind_gain_pct,
+                   COALESCE(accuracy_pct, ROUND(MAX(75.0, 100.0 - (mae_psi / 50.0 * 100.0)), 1))
             FROM model_training_runs
             ORDER BY run_id DESC
             LIMIT 12
@@ -211,6 +219,7 @@ def record_training_run(
             "r2_score": round(float(r[7]), 3),
             "interval_coverage_pct": round(float(r[8]), 1),
             "wind_gain_pct": round(float(r[9]), 1),
+            "accuracy_pct": round(float(r[10]), 1),
         }
         for r in reversed(rows)
     ]

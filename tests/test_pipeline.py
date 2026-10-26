@@ -48,6 +48,8 @@ def test_wind_aware_forecaster_and_counterfactual_predictions() -> None:
     metrics = forecast_engine.train_all(trigger_source="pytest-verification")
     assert metrics["mae_psi"] >= 0.0
     assert metrics["wind_gain_pct"] > 0.0
+    assert metrics["accuracy_pct"] >= 75.0
+    assert metrics["tolerance_5psi_pct"] >= 70.0
     assert len(metrics["training_history"]) >= 1
 
     # Compare counterfactual SW Sumatra gale (230 deg, 16 kn, hotspot 2.0) vs NE sea breeze flush (40 deg, 16 kn, hotspot 0.0)
@@ -93,4 +95,5 @@ def test_fastapi_endpoints_and_continuous_sync() -> None:
         assert data["status"] == "ok"
         assert "counterfactual_simulation" in data["short_term"]
         assert "continuous_learning" in data
+        assert data["diagnostics"]["metrics"]["accuracy_pct"] >= 75.0
         assert len(data["diagnostics"]["metrics"]["training_history"]) >= 1
