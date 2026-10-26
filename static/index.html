@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SG-Haze-Forecast · Singapore Atmospheric, Wind Vector &amp; Haze Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css?v=8" />
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="topbar-brand">
+      <svg class="brand-mark" viewBox="0 0 28 28" aria-hidden="true">
+        <circle cx="14" cy="14" r="11.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 2" />
+        <circle cx="14" cy="14" r="6.5" fill="none" stroke="#38BDF8" stroke-width="1.5" />
+        <circle cx="14" cy="14" r="2.2" fill="#10B981" />
+        <path d="M14 2.5V6M14 22V25.5M2.5 14H6M22 14H25.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <div>
+        <h1 class="site-title">Singapore Atmospheric, Wind Vector &amp; Haze Intelligence</h1>
+        <p class="site-subtitle">Live NEA PSI, PM<sub>2.5</sub>, Wind Speed &amp; Direction (`data.gov.sg`) · Counterfactual Prediction Sandbox · Continuous Auto-Retraining</p>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="telemetry-status" id="telemetry-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span class="status-text" id="latest-timestamp-label">Synchronizing NEA feed...</span>
+      </div>
+      <label class="auto-learn-toggle" for="toggle-auto-learn" title="Polls data.gov.sg at :05 and :35 past each hour and retrains automatically when a new NEA hourly reading is published">
+        <input type="checkbox" id="toggle-auto-learn" checked />
+        <span>Hourly-Aligned Sync (<span id="countdown-label">Next :05/:35</span>)</span>
+      </label>
+      <button type="button" class="btn-sync" id="btn-sync" aria-label="Synchronize live NEA readings and retrain model now">
+        <svg class="icon-sync" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+          <path d="M3.5 10a6.5 6.5 0 0 1 11.3-4.3M16.5 10a6.5 6.5 0 0 1-11.3 4.3" stroke-linecap="round" />
+          <polyline points="12.5 5.5 15.2 5.8 14.9 3.1" stroke-linecap="round" stroke-linejoin="round" />
+          <polyline points="7.5 14.5 4.8 14.2 5.1 16.9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Fetch &amp; Retrain Now</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="workbench" id="main-content">
+    <!-- Section 1: Spatial Singapore Wind + Plume Map & Short-Term 72h Trajectory -->
+    <section class="primary-grid" aria-label="Short-Term Regional Telemetry, Wind Vectors, and 72-Hour Forecast">
+      <!-- Left Column: Spatial Singapore 5-Region Map & Wind Vector Overlay -->
+      <div class="instrument-panel map-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Regional Air Quality &amp; Wind Vector Field</h2>
+            <p class="panel-subtitle" id="map-time-caption">Live Observation · 5 NEA Air Quality Zones + 18 Meteorological Wind Stations</p>
+          </div>
+          <span class="band-pill" id="national-band-pill">Good</span>
+        </div>
+
+        <!-- Interactive Singapore 5-Region Vector Telemetry Map with Regional Wind Arrows -->
+        <div class="sg-map-frame">
+          <svg id="sg-spatial-svg" viewBox="0 0 640 350" role="img" aria-label="Interactive map of Singapore's five air quality monitoring regions with live wind vectors">
+            <defs>
+              <radialGradient id="grad-north" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.34" id="stop-north" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </radialGradient>
+              <radialGradient id="grad-south" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.34" id="stop-south" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </radialGradient>
+              <radialGradient id="grad-east" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.34" id="stop-east" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </radialGradient>
+              <radialGradient id="grad-west" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.34" id="stop-west" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </radialGradient>
+              <radialGradient id="grad-central" cx="50%" cy="50%" r="55%">
+                <stop offset="0%" stop-color="#10B981" stop-opacity="0.34" id="stop-central" />
+                <stop offset="100%" stop-color="#10B981" stop-opacity="0.0" />
+              </radialGradient>
+            </defs>
+
+            <!-- Coordinate Graticule Lines -->
+            <g class="map-graticule" stroke="#DCE5F0" stroke-width="1">
+              <line x1="0" y1="70" x2="640" y2="70" />
+              <line x1="0" y1="175" x2="640" y2="175" />
+              <line x1="0" y1="280" x2="640" y2="280" />
+              <line x1="140" y1="0" x2="140" y2="350" />
+              <line x1="320" y1="0" x2="320" y2="350" />
+              <line x1="500" y1="0" x2="500" y2="350" />
+            </g>
+
+            <text x="12" y="64" class="coord-label">1.42°N</text>
+            <text x="12" y="169" class="coord-label">1.36°N</text>
+            <text x="12" y="274" class="coord-label">1.29°N</text>
+            <text x="115" y="340" class="coord-label">103.70°E</text>
+            <text x="295" y="340" class="coord-label">103.82°E</text>
+            <text x="475" y="340" class="coord-label">103.94°E</text>
+
+            <!-- Singapore Coastline & Regional Sector Polygons -->
+            <g class="island-sectors">
+              <path id="sector-west" class="region-sector" data-region="west"
+                d="M 68 182 L 96 122 L 178 96 L 245 130 L 240 218 L 168 246 L 86 226 Z" />
+              <path id="sector-north" class="region-sector" data-region="north"
+                d="M 178 96 L 265 56 L 368 62 L 412 108 L 355 142 L 245 130 Z" />
+              <path id="sector-central" class="region-sector" data-region="central"
+                d="M 245 130 L 355 142 L 395 186 L 348 222 L 240 218 Z" />
+              <path id="sector-south" class="region-sector" data-region="south"
+                d="M 240 218 L 348 222 L 382 254 L 312 286 L 228 264 Z" />
+              <path id="sector-east" class="region-sector" data-region="east"
+                d="M 412 108 L 518 118 L 566 164 L 528 220 L 395 186 L 355 142 Z" />
+              <path d="M 465 88 L 502 84 L 512 98 L 474 102 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2" />
+              <path d="M 542 92 L 588 86 L 598 116 L 552 122 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2" />
+            </g>
+
+            <!-- Plume Radial Aura Overlays -->
+            <circle id="aura-north" cx="315" cy="95" r="78" fill="url(#grad-north)" pointer-events="none" />
+            <circle id="aura-west" cx="165" cy="175" r="85" fill="url(#grad-west)" pointer-events="none" />
+            <circle id="aura-central" cx="320" cy="175" r="72" fill="url(#grad-central)" pointer-events="none" />
+            <circle id="aura-south" cx="308" cy="252" r="68" fill="url(#grad-south)" pointer-events="none" />
+            <circle id="aura-east" cx="475" cy="164" r="82" fill="url(#grad-east)" pointer-events="none" />
+
+            <!-- Regional Wind Streamline Vectors -->
+            <g class="regional-wind-arrows" pointer-events="none">
+              <g id="reg-wind-north" transform="translate(262, 85) rotate(0)">
+                <line x1="0" y1="10" x2="0" y2="-10" stroke="#0071E3" stroke-width="1.8" stroke-opacity="0.85" />
+                <polygon points="0,-13 -3.5,-5 3.5,-5" fill="#0071E3" fill-opacity="0.85" />
+              </g>
+              <g id="reg-wind-west" transform="translate(112, 165) rotate(0)">
+                <line x1="0" y1="10" x2="0" y2="-10" stroke="#0071E3" stroke-width="1.8" stroke-opacity="0.85" />
+                <polygon points="0,-13 -3.5,-5 3.5,-5" fill="#0071E3" fill-opacity="0.85" />
+              </g>
+              <g id="reg-wind-central" transform="translate(268, 175) rotate(0)">
+                <line x1="0" y1="10" x2="0" y2="-10" stroke="#0071E3" stroke-width="1.8" stroke-opacity="0.85" />
+                <polygon points="0,-13 -3.5,-5 3.5,-5" fill="#0071E3" fill-opacity="0.85" />
+              </g>
+              <g id="reg-wind-south" transform="translate(254, 252) rotate(0)">
+                <line x1="0" y1="10" x2="0" y2="-10" stroke="#0071E3" stroke-width="1.8" stroke-opacity="0.85" />
+                <polygon points="0,-13 -3.5,-5 3.5,-5" fill="#0071E3" fill-opacity="0.85" />
+              </g>
+              <g id="reg-wind-east" transform="translate(422, 155) rotate(0)">
+                <line x1="0" y1="10" x2="0" y2="-10" stroke="#0071E3" stroke-width="1.8" stroke-opacity="0.85" />
+                <polygon points="0,-13 -3.5,-5 3.5,-5" fill="#0071E3" fill-opacity="0.85" />
+              </g>
+            </g>
+
+            <!-- Primary Compass Wind Vector Dial -->
+            <g id="wind-vector-group" transform="translate(556, 274)">
+              <circle cx="0" cy="0" r="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5" />
+              <text x="0" y="-18" text-anchor="middle" class="coord-label">N</text>
+              <g id="wind-arrow" transform="rotate(0)">
+                <line x1="0" y1="13" x2="0" y2="-13" stroke="#0071E3" stroke-width="2.2" stroke-linecap="round" />
+                <polygon points="0,-16 -4.5,-6 4.5,-6" fill="#0071E3" />
+              </g>
+              <text x="0" y="42" text-anchor="middle" class="coord-label" id="wind-vector-caption">-- kn · --</text>
+            </g>
+
+            <!-- 5 Interactive Station Nodes -->
+            <g class="station-nodes">
+              <g class="station-node" data-region="north" transform="translate(315, 95)" tabindex="0" role="button" aria-label="North region station">
+                <circle r="24" class="node-ring" id="ring-north" />
+                <text y="5" text-anchor="middle" class="node-psi" id="node-psi-north">--</text>
+                <text y="-31" text-anchor="middle" class="node-title">NORTH</text>
+                <text y="38" text-anchor="middle" class="node-unit" id="node-wind-north">-- kn</text>
+              </g>
+
+              <g class="station-node" data-region="west" transform="translate(162, 175)" tabindex="0" role="button" aria-label="West region station">
+                <circle r="24" class="node-ring" id="ring-west" />
+                <text y="5" text-anchor="middle" class="node-psi" id="node-psi-west">--</text>
+                <text y="-31" text-anchor="middle" class="node-title">WEST</text>
+                <text y="38" text-anchor="middle" class="node-unit" id="node-wind-west">-- kn</text>
+              </g>
+
+              <g class="station-node active" data-region="central" transform="translate(320, 175)" tabindex="0" role="button" aria-label="Central region station">
+                <circle r="24" class="node-ring" id="ring-central" />
+                <text y="5" text-anchor="middle" class="node-psi" id="node-psi-central">--</text>
+                <text y="-31" text-anchor="middle" class="node-title">CENTRAL</text>
+                <text y="38" text-anchor="middle" class="node-unit" id="node-wind-central">-- kn</text>
+              </g>
+
+              <g class="station-node" data-region="south" transform="translate(308, 258)" tabindex="0" role="button" aria-label="South region station">
+                <circle r="24" class="node-ring" id="ring-south" />
+                <text y="5" text-anchor="middle" class="node-psi" id="node-psi-south">--</text>
+                <text y="-31" text-anchor="middle" class="node-title">SOUTH</text>
+                <text y="38" text-anchor="middle" class="node-unit" id="node-wind-south">-- kn</text>
+              </g>
+
+              <g class="station-node" data-region="east" transform="translate(475, 164)" tabindex="0" role="button" aria-label="East region station">
+                <circle r="24" class="node-ring" id="ring-east" />
+                <text y="5" text-anchor="middle" class="node-psi" id="node-psi-east">--</text>
+                <text y="-31" text-anchor="middle" class="node-title">EAST</text>
+                <text y="38" text-anchor="middle" class="node-unit" id="node-wind-east">-- kn</text>
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Scrubber Controls for +0h Live to +72h Forecast -->
+        <div class="scrubber-box">
+          <div class="scrubber-header">
+            <label for="forecast-hour-slider" class="control-label">
+              Forecast Target Time
+              <span class="mono-value" id="scrubber-step-badge">Live Now</span>
+            </label>
+            <select id="target-time-select" class="time-picker-select" aria-label="Jump to a specific future date and hour">
+              <option value="0">Live Observation (Now)</option>
+            </select>
+          </div>
+          <div class="quick-time-presets" id="quick-time-presets" role="group" aria-label="Quick future time presets"></div>
+          <input type="range" id="forecast-hour-slider" class="telemetry-slider" min="0" max="72" step="1" value="0" />
+          <div class="scrubber-ticks" id="scrubber-ticks">
+            <span>Live Now</span>
+            <span>+12h</span>
+            <span>+24h</span>
+            <span>+48h</span>
+            <span>+72h</span>
+          </div>
+          <div class="regime-selector" role="group" aria-label="Atmospheric Wind &amp; Transport Regime">
+            <button type="button" class="regime-btn active" data-regime="baseline">Live Synoptic Wind</button>
+            <button type="button" class="regime-btn" data-regime="sumatra_sw">SW Sumatra Plume (225°)</button>
+            <button type="button" class="regime-btn" data-regime="monsoon_rain">NE Monsoon Washout (35°)</button>
+          </div>
+        </div>
+
+        <!-- Selected Region Sub-Pollutant & Wind Telemetry Strip -->
+        <div class="subindex-strip" aria-live="polite">
+          <div class="subindex-header">
+            <div>
+              <h3 class="subindex-region-title" id="selected-region-heading">Central Region Telemetry</h3>
+              <p class="subindex-station-meta" id="selected-region-stations">Scotts / Clementi / Kim Chuan / AMK</p>
+            </div>
+            <p class="health-advisory-note" id="selected-region-advisory">Normal activities across all population groups.</p>
+          </div>
+          <dl class="pollutant-matrix">
+            <div class="pollutant-cell">
+              <dt>24-Hr PSI</dt>
+              <dd id="val-psi-24h">--</dd>
+            </div>
+            <div class="pollutant-cell">
+              <dt>1-Hr PM<sub>2.5</sub></dt>
+              <dd id="val-pm25-1h">--</dd>
+            </div>
+            <div class="pollutant-cell">
+              <dt>Wind Speed</dt>
+              <dd id="val-wind-speed">--</dd>
+            </div>
+            <div class="pollutant-cell">
+              <dt>Wind Bearing</dt>
+              <dd id="val-wind-dir">--</dd>
+            </div>
+            <div class="pollutant-cell">
+              <dt>Sumatra Advection</dt>
+              <dd id="val-advection-idx">--</dd>
+            </div>
+            <div class="pollutant-cell">
+              <dt>24-Hr PM<sub>10</sub> / O<sub>3</sub></dt>
+              <dd id="val-pm10-o3">--</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Right Column: 72-Hour Trajectory Fan Chart + Counterfactual Overlay & Regional Matrix -->
+      <div class="instrument-panel chart-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" id="trajectory-chart-title">48-Hour Observed, 72-Hour Baseline Forecast &amp; Counterfactual Trajectory</h2>
+            <p class="panel-subtitle">Compare the live ML forecast (violet) against your custom Wind &amp; Plume Counterfactual Prediction (amber dashed)</p>
+          </div>
+          <div class="region-filter-pills" id="region-filter-pills" role="tablist" aria-label="Select region for trajectory chart">
+            <button type="button" class="pill-btn active" data-region="national" role="tab" aria-selected="true">National Max</button>
+            <button type="button" class="pill-btn" data-region="central" role="tab" aria-selected="false">Central</button>
+            <button type="button" class="pill-btn" data-region="west" role="tab" aria-selected="false">West</button>
+            <button type="button" class="pill-btn" data-region="south" role="tab" aria-selected="false">South</button>
+            <button type="button" class="pill-btn" data-region="north" role="tab" aria-selected="false">North</button>
+            <button type="button" class="pill-btn" data-region="east" role="tab" aria-selected="false">East</button>
+          </div>
+        </div>
+
+        <div class="chart-canvas-wrap">
+          <div class="chart-hover-banner" id="chart-hover-banner">
+            <span class="hover-time" id="hover-time-label">Hover or click any hour on the chart to inspect exact timestamp &amp; forecast</span>
+            <span class="hover-values" id="hover-values-label"></span>
+          </div>
+          <svg id="trajectory-svg" viewBox="0 0 780 315" role="img" aria-label="Time series fan chart of observed, baseline forecasted, and counterfactual simulated PSI"></svg>
+          <div class="chart-legend">
+            <span class="legend-item"><i class="swatch swatch-obs"></i>Observed 24-Hr PSI</span>
+            <span class="legend-item"><i class="swatch swatch-fc"></i>Baseline 72-Hr ML Forecast</span>
+            <span class="legend-item"><i class="swatch swatch-sim"></i>Calculated Counterfactual Prediction</span>
+            <span class="legend-item"><i class="swatch swatch-fan"></i>10th–90th Quantile Band</span>
+            <span class="legend-item"><i class="swatch swatch-pm25"></i>1-Hr PM<sub>2.5</sub> (µg/m³)</span>
+          </div>
+        </div>
+
+        <!-- Multi-Horizon Regional Forecast Table (+6h, +12h, +24h, +48h, +72h) -->
+        <div class="horizon-table-section">
+          <div class="sub-header-bar">
+            <h3 class="sub-section-title">Multi-Horizon Regional Forecast Matrix</h3>
+            <span class="unit-caption">Top: 24-Hr PSI &middot; Bottom: 1-Hr PM<sub>2.5</sub> (&mu;g/m&sup3;) &amp; Wind</span>
+          </div>
+          <div class="table-scroll">
+            <table class="telemetry-table matrix-table" id="horizon-forecast-table">
+              <thead id="horizon-table-head">
+                <tr>
+                  <th scope="col">NEA Region</th>
+                  <th scope="col">Live Now</th>
+                  <th scope="col">+6 Hours</th>
+                  <th scope="col">+12 Hours</th>
+                  <th scope="col">+24 Hours</th>
+                  <th scope="col">+48 Hours</th>
+                  <th scope="col">+72 Hours</th>
+                  <th scope="col">72h Peak</th>
+                </tr>
+              </thead>
+              <tbody id="horizon-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: "Calculated Predictions on Predictions" Wind Vector & Plume Counterfactual Lab + Continuous Learning Monitor -->
+    <section class="sandbox-grid" aria-label="Calculated Predictions on Predictions Sandbox and Continuous Model Learning">
+      <!-- Left: Counterfactual Wind Vector & Plume Sandbox -->
+      <div class="instrument-panel sandbox-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Calculated Predictions on Predictions &middot; Wind &amp; Plume Perturbation Lab</h2>
+            <p class="panel-subtitle">Perturb the model's forecasted wind bearing, wind speed, and regional peatland hotspot intensity to calculate second-order sensitivity deltas (&Delta;PSI) against the baseline 72-hour prediction</p>
+          </div>
+          <div class="preset-group" role="group" aria-label="Wind Perturbation Scenarios">
+            <button type="button" class="sim-preset-btn active" data-wd="live" data-ws="live" data-hs="0.0">Match Live Wind</button>
+            <button type="button" class="sim-preset-btn" data-wd="230" data-ws="14.0" data-hs="1.8">Sumatra SW Gale (230° · 14kn)</button>
+            <button type="button" class="sim-preset-btn" data-wd="142" data-ws="12.5" data-hs="1.6">Kalimantan SE Plume (142° · 12.5kn)</button>
+            <button type="button" class="sim-preset-btn" data-wd="215" data-ws="2.0" data-hs="1.2">Calm Inversion Stagnation (2kn)</button>
+            <button type="button" class="sim-preset-btn" data-wd="40" data-ws="15.0" data-hs="0.0">NE Sea-Breeze Flush (40° · 15kn)</button>
+          </div>
+        </div>
+
+        <div class="sandbox-body-grid">
+          <!-- Interactive Polar Wind Rose & Sensitivity Radar -->
+          <div class="wind-rose-box">
+            <div class="sub-header-bar">
+              <h3 class="sub-section-title">8-Sector Wind Bearing Sensitivity Rose (+24h PSI)</h3>
+              <span class="unit-caption">Click any sector or drag sliders</span>
+            </div>
+            <svg id="wind-rose-svg" viewBox="0 0 280 260" role="img" aria-label="Polar wind rose showing predicted 24-hour PSI across 8 wind bearings"></svg>
+          </div>
+
+          <!-- Sliders + Calculated Delta Readout -->
+          <div class="sandbox-controls-col">
+            <div class="climate-sliders-row sandbox-sliders">
+              <div class="slider-control">
+                <div class="slider-label-row">
+                  <label for="slider-sim-wd">Simulated Wind Bearing (° from N)</label>
+                  <span class="mono-value" id="label-sim-wd">180° (S)</span>
+                </div>
+                <input type="range" id="slider-sim-wd" class="telemetry-slider" min="0" max="355" step="5" value="180" />
+                <div class="slider-scale"><span>0° (N)</span><span>140° (SE)</span><span>230° (SW Sumatra)</span><span>355°</span></div>
+              </div>
+
+              <div class="slider-control">
+                <div class="slider-label-row">
+                  <label for="slider-sim-ws">Simulated Wind Speed (knots)</label>
+                  <span class="mono-value" id="label-sim-ws">6.0 kn</span>
+                </div>
+                <input type="range" id="slider-sim-ws" class="telemetry-slider" min="1.0" max="24.0" step="0.5" value="6.0" />
+                <div class="slider-scale"><span>1 kn (Stagnant)</span><span>10 kn (Moderate)</span><span>24 kn (Strong)</span></div>
+              </div>
+
+              <div class="slider-control">
+                <div class="slider-label-row">
+                  <label for="slider-sim-hs">Regional Hotspot Plume Intensity</label>
+                  <span class="mono-value" id="label-sim-hs">0.00×</span>
+                </div>
+                <input type="range" id="slider-sim-hs" class="telemetry-slider" min="0.0" max="2.5" step="0.1" value="0.0" />
+                <div class="slider-scale"><span>0.0× (No Fires)</span><span>1.0× (Active Dry)</span><span>2.5× (Severe Peat)</span></div>
+              </div>
+            </div>
+
+            <!-- Second-Order Prediction Delta Strip -->
+            <dl class="delta-cards-grid">
+              <div class="metric-item">
+                <dt>Baseline +24h Prediction</dt>
+                <dd id="sim-base-24h">-- PSI</dd>
+              </div>
+              <div class="metric-item">
+                <dt>Calculated +24h Prediction</dt>
+                <dd id="sim-calc-24h">-- PSI</dd>
+              </div>
+              <div class="metric-item">
+                <dt>72h Peak Delta (&Delta;PSI)</dt>
+                <dd id="sim-delta-peak">-- PSI</dd>
+              </div>
+              <div class="metric-item">
+                <dt>Sumatra Advection Vector</dt>
+                <dd id="sim-advection-val">-- kn</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Continuous Fetching & Model Self-Improvement Monitor -->
+      <div class="instrument-panel learning-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Continuous Model Learning &amp; Walk-Forward Verification</h2>
+            <p class="panel-subtitle">Background daemon ingests fresh `data.gov.sg` readings and retrains the gradient boosting ensemble</p>
+          </div>
+        </div>
+
+        <dl class="metrics-strip four-col">
+          <div class="metric-item">
+            <dt>Holdout MAE</dt>
+            <dd id="diag-mae">--</dd>
+          </div>
+          <div class="metric-item">
+            <dt>Wind Vector Gain</dt>
+            <dd id="diag-wind-gain">--</dd>
+          </div>
+          <div class="metric-item">
+            <dt>R² Explained</dt>
+            <dd id="diag-r2">--</dd>
+          </div>
+          <div class="metric-item">
+            <dt>80% Coverage</dt>
+            <dd id="diag-coverage">--</dd>
+          </div>
+        </dl>
+
+        <div class="backtest-chart-box">
+          <div class="sub-header-bar">
+            <h3 class="sub-section-title">Out-of-Sample Walk-Forward Backtest &amp; Progressive MAE Improvement</h3>
+            <span class="unit-caption" id="diag-sample-count">-- samples</span>
+          </div>
+          <svg id="backtest-svg" viewBox="0 0 460 155" role="img" aria-label="Out-of-sample backtest comparing actual versus predicted PSI"></svg>
+        </div>
+
+        <div class="training-log-box">
+          <div class="sub-header-bar">
+            <h3 class="sub-section-title">Continuous Retraining Log (Progressive Error Reduction)</h3>
+            <span class="unit-caption" id="retrain-cycles-badge">Cycle #1</span>
+          </div>
+          <div class="table-scroll">
+            <table class="telemetry-table compact-table">
+              <thead>
+                <tr>
+                  <th scope="col">Run</th>
+                  <th scope="col">Trigger</th>
+                  <th scope="col">Samples</th>
+                  <th scope="col">MAE</th>
+                  <th scope="col">R²</th>
+                  <th scope="col">Wind Gain</th>
+                </tr>
+              </thead>
+              <tbody id="training-history-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Seasonal 12-Month ENSO/IOD Risk Simulator & Feature Sensitivity -->
+    <section class="secondary-grid" aria-label="Seasonal Haze Outlook and Model Feature Sensitivity">
+      <!-- Seasonal Macro-Climatic Risk Engine -->
+      <div class="instrument-panel seasonal-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">12-Month Seasonal Transboundary Haze Outlook (ENSO &amp; IOD Simulator)</h2>
+            <p class="panel-subtitle">Simulate El Niño–Southern Oscillation (ONI) and Indian Ocean Dipole (DMI) drought anomalies over Sumatra &amp; Kalimantan peatlands</p>
+          </div>
+          <div class="preset-group" role="group" aria-label="Historical Climate Presets">
+            <button type="button" class="preset-btn active" data-oni="0.35" data-iod="0.22" data-rain="-10">2026 Current Baseline</button>
+            <button type="button" class="preset-btn" data-oni="2.15" data-iod="0.70" data-rain="-65">1997 / 2015 Super El Niño</button>
+            <button type="button" class="preset-btn" data-oni="0.45" data-iod="1.35" data-rain="-55">2019 Extreme +IOD</button>
+            <button type="button" class="preset-btn" data-oni="-0.90" data-iod="-0.40" data-rain="30">La Niña Wet Suppression</button>
+          </div>
+        </div>
+
+        <div class="climate-sliders-row">
+          <div class="slider-control">
+            <div class="slider-label-row">
+              <label for="slider-enso">ENSO Oceanic Niño Index (ONI °C)</label>
+              <span class="mono-value" id="label-enso">+0.35 °C</span>
+            </div>
+            <input type="range" id="slider-enso" class="telemetry-slider" min="-1.5" max="2.4" step="0.05" value="0.35" />
+            <div class="slider-scale"><span>-1.5°C (La Niña)</span><span>0.0°C (Neutral)</span><span>+2.4°C (Super El Niño)</span></div>
+          </div>
+
+          <div class="slider-control">
+            <div class="slider-label-row">
+              <label for="slider-iod">Indian Ocean Dipole (DMI °C)</label>
+              <span class="mono-value" id="label-iod">+0.22 °C</span>
+            </div>
+            <input type="range" id="slider-iod" class="telemetry-slider" min="-1.2" max="1.8" step="0.05" value="0.22" />
+            <div class="slider-scale"><span>-1.2°C (Negative)</span><span>0.0°C</span><span>+1.8°C (Extreme +IOD)</span></div>
+          </div>
+
+          <div class="slider-control">
+            <div class="slider-label-row">
+              <label for="slider-rain">Regional Rainfall Anomaly (%)</label>
+              <span class="mono-value" id="label-rain">-10%</span>
+            </div>
+            <input type="range" id="slider-rain" class="telemetry-slider" min="-75" max="50" step="5" value="-10" />
+            <div class="slider-scale"><span>-75% (Severe Drought)</span><span>0%</span><span>+50% (Surplus)</span></div>
+          </div>
+        </div>
+
+        <!-- 12-Month Risk Strip & Chart -->
+        <div class="seasonal-months-grid" id="seasonal-months-grid" role="list" aria-label="12-month projected PSI and unhealthy haze risk"></div>
+
+        <!-- Historical Singapore Haze Benchmarks (2014–2026) -->
+        <div class="historical-benchmarks">
+          <div class="sub-header-bar">
+            <h3 class="sub-section-title">Historical Singapore Annual Haze &amp; Climate Baseline (2014–2026)</h3>
+            <span class="unit-caption">Calibrated to NEA &amp; MSS historical episodes</span>
+          </div>
+          <div class="table-scroll">
+            <table class="telemetry-table compact-table">
+              <thead>
+                <tr>
+                  <th scope="col">Year</th>
+                  <th scope="col">ENSO Peak (ONI)</th>
+                  <th scope="col">IOD Peak (DMI)</th>
+                  <th scope="col">Mean PSI</th>
+                  <th scope="col">Annual Peak PSI</th>
+                  <th scope="col">Unhealthy Days</th>
+                  <th scope="col">Documented Atmospheric Regime</th>
+                </tr>
+              </thead>
+              <tbody id="historical-annual-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Permutation Feature Importance Panel -->
+      <div class="instrument-panel diagnostics-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Model Feature Sensitivity &amp; Wind Physics Breakdown</h2>
+            <p class="panel-subtitle">Relative impact of autoregressive lags, wind vector advection, and boundary-layer stagnation</p>
+          </div>
+        </div>
+
+        <div class="feature-importance-box">
+          <div class="sub-header-bar">
+            <h3 class="sub-section-title">Permutation Feature Sensitivity (% Impact on Forecast)</h3>
+          </div>
+          <div class="feature-bars" id="feature-bars-container"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js?v=8"></script>
+</body>
+</html>
